@@ -3,6 +3,8 @@ from colecoes.usuario import Usuario, coletar_endereco
 from colecoes.produto import Produto
 from colecoes.vendedor import Vendedor
 from colecoes.compra import Compra
+from redisbd import REDIS
+import json
 
 
 
@@ -70,7 +72,6 @@ def crud_usuario():
         print("|6 - Adicionar favorito |")
         print("|7 - Remover favorito   |")
         print("|8 - Adicionar compra   |")
-        # print("|9 - Remover compra")
         print("|0 - Voltar             |")
 
         entrada = int(input("|Escolha: "))
@@ -110,11 +111,10 @@ def crud_usuario():
                 escolher_usuario(),
                 escolher_compra()
             )
-        # elif entrada == 9:# Remover compra
-        #     Usuario.remover_compra(escolher_usuario())
         else:
             system("cls")
             EXECUTANDO = False
+        if not is_logged(): login()
 
 def crud_vendedor():
     EXECUTANDO = True
@@ -164,6 +164,7 @@ def crud_vendedor():
         else:
             system("cls")
             EXECUTANDO = False
+        if not is_logged(): login()
 
 def crud_produto():
     EXECUTANDO = True
@@ -188,8 +189,11 @@ def crud_produto():
                 print(f"{produtos[i]}\n")
         elif entrada == 3:# Listar produto
             print("|Produtos encontrados: ")
-            for produto in Produto.read_all():
+            redis = REDIS()
+            for produto in json.loads(redis.get("usuario:produtos")):
                 print(f"{produto}\n")
+            # for produto in Produto.read_all():
+            #     print(f"{produto}\n")
         elif entrada == 4:# Atualizar produto
             produto = escolher_produto()
             if input("|Editar nome? (Sim/Não): ").upper() == "SIM":
@@ -208,6 +212,8 @@ def crud_produto():
         else:
             system("cls")
             EXECUTANDO = False
+        if not is_logged(): login()
+    sync_produtos()
 
 def crud_compra():
     EXECUTANDO = True
@@ -248,28 +254,81 @@ def crud_compra():
                 print(f"{compras[i]}\n")
         elif entrada == 3:# Listar compras
             print("|Compras encontradas: ")
-            for compra in Compra.read_all():
-                print(compra)
+            redis = REDIS()
+            for compra in json.loads(redis.get("usuario:compras")):
+                print(f"{compra}\n")
+            # for compra in Compra.read_all():
+            #     print(compra)
         else:
             system("cls")
             EXECUTANDO = False
+        if not is_logged(): login()
+    sync_compras()
 
-EXECUTANDO = True
-while EXECUTANDO:
-    print("|Menu Principal    |")
-    print("|1 - CRUD Usuário  |")
-    print("|2 - CRUD Vendedor |")
-    print("|3 - CRUD Produto  |")
-    print("|4 - CRUD Compra   |")
-    print("|0 - Sair          |")
+def is_logged() -> bool:
+    redis = REDIS()
+    return True if redis.get("logintoken") is not None else False
 
-    entrada = int(input("|Opção: "))
-    if entrada == 1:
-        crud_usuario()
-    elif entrada == 2:
-        crud_vendedor()
-    elif entrada == 3:
-        crud_produto()
-    elif entrada == 4:
-        crud_compra()
-    else: EXECUTANDO = False
+def login():
+    print("|Insira o nome de úsuario e senha")
+    usuario = input("|Nome de úsuario: ")
+    senha = input("|Senha de úsuario: ")
+    redis = REDIS()
+    redis.set("logintoken", f"{usuario}:{senha}")
+    redis.expire("logintoken", 30)
+
+def sync_produtos():
+    print("|Sincronizando cache de produtos...")
+    redis = REDIS()
+    cache = []
+    for produto in Produto.read_all():
+        cache.append({
+            "nome": produto["nome"],
+            "descricao": produto["descricao"],
+            "valor": produto["valor"]
+        })
+    redis.set("usuario:produtos", json.dumps(cache))
+
+def sync_compras():
+    print("|Sincronizando cache de compras...")
+    redis = REDIS()
+    cache = []
+    for compra in Compra.read_all():
+        cache.append({
+            "valor": compra["valor"],
+            "data": compra["data"],
+            "produtos": [{
+                "nome": produto["nome"],
+                "descricao": produto["descricao"],
+                "valor": produto["valor"],
+                "vendedor": { "nome": produto["vendedor"]["nome"] }
+            } for produto in compra["produtos"]],
+            "usuario": { "nome": compra["usuario"]["nome"] }
+        })
+    redis.set("usuario:compras", json.dumps(cache))
+
+def main():
+    sync_produtos()
+    sync_compras()
+    login()
+
+    EXECUTANDO = True
+    while EXECUTANDO:
+        print("|Menu Principal    |")
+        print("|1 - CRUD Usuário  |")
+        print("|2 - CRUD Vendedor |")
+        print("|3 - CRUD Produto  |")
+        print("|4 - CRUD Compra   |")
+        print("|0 - Sair          |")
+
+        entrada = int(input("|Opção: "))
+        if entrada == 1:
+            crud_usuario()
+        elif entrada == 2:
+            crud_vendedor()
+        elif entrada == 3:
+            crud_produto()
+        elif entrada == 4:
+            crud_compra()
+        else: EXECUTANDO = False
+main()

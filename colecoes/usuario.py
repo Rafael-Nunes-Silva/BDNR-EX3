@@ -75,16 +75,3 @@ class Usuario:
         usuario["compras"].append(compra)
 
         Usuario.update(usuario)
-    
-    # def remover_compra(usuario: dict):
-    #     compras = usuario["compras"]
-    #     print("Compras encontradas: ")
-    #     for i in range(len(compras)):
-    #         print(f"{i+1} - {compras[i]}")
-    #     escolha = int(input("Escolha: "))
-    #     if escolha == 0: return
-        
-    #     compra = compras[escolha-1]
-    #     usuario["compras"].remove(compra)
-
-    #     Usuario.update(usuario)
