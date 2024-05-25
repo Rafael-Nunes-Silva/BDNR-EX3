@@ -19,6 +19,9 @@ class REDIS:
     def set(self, key, val):
         self.bd.set(key, val)
     
+    def delete(self, key):
+        self.bd.delete(key)
+    
     def exists(self, key: str) -> bool:
         return False if self.bd.get(key) is None else True
 

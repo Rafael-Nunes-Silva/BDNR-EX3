@@ -37,11 +37,14 @@ def escolher_vendedor() -> dict:
 def escolher_produto() -> dict:
     print("|Buscar por produto:")
     nome = input("|Nome do produto: ")
-    produtos = Produto.read_all({"nome": nome})
+
+    redis = REDIS()
+    produtos = json.loads(redis.get("usuario:produtos"))
+    produtos = [p for p in produtos if p["nome"] == nome]
 
     print("|Produtos encontrados: ")
     for i in range(len(produtos)):
-        print(f"{i+1} - {produtos[i]}")
+        print(f"|{i+1} - {produtos[i]}")
     escolha = int(input("|Selecione o produto: "))
     if escolha == 0: return
     
@@ -50,11 +53,14 @@ def escolher_produto() -> dict:
 def escolher_compra() -> dict:
     print("|Buscar por compra:")
     data = input("|Data da compra: ")
-    compras = Compra.read_all({"data": data})
+    
+    redis = REDIS()
+    compras = json.loads(redis.get("usuario:produtos"))
+    compras = [c for c in compras if c["data"] == data]
 
     print("|Compras encontradas: ")
     for i in range(len(compras)):
-        print(f"{i+1} - {compras[i]}")
+        print(f"|{i+1} - {compras[i]}")
     escolha = int(input("|Selecione a compra: "))
     if escolha == 0: return
     
@@ -192,8 +198,6 @@ def crud_produto():
             redis = REDIS()
             for produto in json.loads(redis.get("usuario:produtos")):
                 print(f"{produto}\n")
-            # for produto in Produto.read_all():
-            #     print(f"{produto}\n")
         elif entrada == 4:# Atualizar produto
             produto = escolher_produto()
             if input("|Editar nome? (Sim/Não): ").upper() == "SIM":
@@ -206,14 +210,20 @@ def crud_produto():
                 vendedor = escolher_vendedor()
                 del vendedor["produtos"]
                 produto["vendedor"] = vendedor
-            Produto.update(produto)
+            
+            redis = REDIS()
+            produtos = json.loads(redis.get("usuario:produtos"))
+            for i in range(len(produtos)):
+                if produtos[i]["_id"] == produto["_id"]:
+                    produtos[i] = produto
+                    break
+            redis.set("usuario:produtos", json.dumps(produtos))
         elif entrada == 5:# Deletar produto
             Produto.delete(escolher_produto())
         else:
             system("cls")
             EXECUTANDO = False
         if not is_logged(): login()
-    sync_produtos()
 
 def crud_compra():
     EXECUTANDO = True
@@ -277,12 +287,20 @@ def login():
     redis.set("logintoken", f"{usuario}:{senha}")
     redis.expire("logintoken", 30)
 
-def sync_produtos():
+def sync_up_produtos():
     print("|Sincronizando cache de produtos...")
+    redis = REDIS()
+    for produto in Produto.read_all():
+        Produto.update(produto)
+    redis.delete("usuario:produtos")
+
+def sync_down_produtos():
+    print("|Baixando cache de produtos...")
     redis = REDIS()
     cache = []
     for produto in Produto.read_all():
         cache.append({
+            "_id": str(produto["_id"]),
             "nome": produto["nome"],
             "descricao": produto["descricao"],
             "valor": produto["valor"]
@@ -295,6 +313,7 @@ def sync_compras():
     cache = []
     for compra in Compra.read_all():
         cache.append({
+            "_id": str(compra["_id"]),
             "valor": compra["valor"],
             "data": compra["data"],
             "produtos": [{
@@ -308,7 +327,7 @@ def sync_compras():
     redis.set("usuario:compras", json.dumps(cache))
 
 def main():
-    sync_produtos()
+    sync_down_produtos()
     sync_compras()
     login()
 
@@ -331,4 +350,6 @@ def main():
         elif entrada == 4:
             crud_compra()
         else: EXECUTANDO = False
+    sync_up_produtos()
+    print("|Saindo...")
 main()
